@@ -8,6 +8,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Librería html2pdf -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <style>
         :root {
             --bg-color: #0a0a0a;
@@ -313,7 +316,7 @@
             border-left: 3px solid #888;
         }
 
-        /* Modal / Plantilla de Cotización */
+        /* Modal en Pantalla (Visualizador) */
         #quoteModal {
             display: none;
             position: fixed;
@@ -420,10 +423,9 @@
             margin-bottom: 40px;
         }
 
-        /* ENCABEZADO GRIS CLARO */
         .quote-table th {
-            background-color: #e2e2e2; 
-            color: #222; 
+            background-color: #e2e2e2 !important; 
+            color: #222 !important; 
             padding: 15px;
             font-weight: 600;
             border: 1px solid #ccc; 
@@ -465,17 +467,16 @@
             margin-top: 5px;
         }
 
-        @media print {
-            body > *:not(#quoteModal) { display: none; }
-            body { background: white; padding: 0; }
-            #quoteModal { 
-                display: block !important; 
-                position: static; 
-                background: white; 
-                padding: 0; 
-            }
-            .quote-paper { padding: 0; box-shadow: none; }
-            .no-print { display: none !important; }
+        /* CONTENEDOR OCULTO EXCLUSIVO PARA EL PDF LIMPIO */
+        #pdfExportContainer {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            width: 800px;
+            background: #ffffff;
+            color: #222;
+            padding: 50px;
+            font-family: 'Poppins', sans-serif;
         }
     </style>
 </head>
@@ -611,14 +612,14 @@
         </div>
     </div>
 
-    <!-- MODAL: PLANTILLA DE COTIZACIÓN PARA EL CLIENTE -->
+    <!-- MODAL EN PANTALLA (VISUALIZADOR) -->
     <div id="quoteModal">
         <div class="quote-paper">
-            <button class="close-modal no-print" onclick="cerrarCotizacion()">×</button>
+            <button class="close-modal" onclick="cerrarCotizacion()">×</button>
             
-            <div class="modal-actions no-print">
-                <button class="btn btn-purple" style="width: auto; padding: 10px 20px;" onclick="exportarPDF()">🖨️ Exportar PDF</button>
-                <button class="btn btn-whatsapp" style="width: auto; padding: 10px 20px;" onclick="enviarPorWhatsApp()">💬 Enviar resumen por WhatsApp</button>
+            <div class="modal-actions">
+                <button class="btn btn-purple" style="width: auto; padding: 10px 20px;" onclick="exportarPDFDirecto()">🖨️ Exportar PDF</button>
+                <button class="btn btn-whatsapp" style="width: auto; padding: 10px 20px;" onclick="enviarPorWhatsAppConPDF()">💬 Enviar por WhatsApp</button>
             </div>
             
             <div class="quote-header">
@@ -648,7 +649,7 @@
             <table class="quote-table">
                 <thead>
                     <tr>
-                        <th>Descripción</th>
+                        <th>Descripción del Servicio</th>
                         <th style="width: 80px;">Cant.</th>
                         <th style="width: 140px;">Precio Unit. (S/)</th>
                         <th style="width: 140px;">Importe (S/)</th>
@@ -659,7 +660,7 @@
 
             <div class="quote-totals">
                 <div class="quote-total-row">
-                    <span>Subtotal:</span>
+                    <span>Subtotal de Servicios:</span>
                     <span class="currency" id="qSubtotal">0.00</span>
                 </div>
                 <div class="quote-total-row" id="qRowFlete" style="display: none;">
@@ -671,14 +672,76 @@
                     <span class="currency" id="qIGV">0.00</span>
                 </div>
                 <div class="quote-total-row quote-total-final">
-                    <span>TOTAL:</span>
+                    <span>TOTAL A PAGAR:</span>
                     <span class="currency" id="qTotal">0.00</span>
                 </div>
             </div>
             
             <div style="margin-top: 60px; border-top: 1px solid #eee; padding-top: 20px; color: #888; font-size: 0.85rem; text-align: center;">
-                Gracias por confiar en nuestros servicios. Este documento tiene una validez de 10 días.
+                Gracias por confiar en nuestros servicios. Este documento tiene una validez de 15 días.
             </div>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR OCULTO EXCLUSIVO PARA GENERAR EL PDF LIMPIO SIN BOTONES -->
+    <div id="pdfExportContainer">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #eee; padding-bottom: 30px; margin-bottom: 40px;">
+            <div>
+                <img id="pdfLogo" style="max-width: 180px; max-height: 90px; object-fit: contain; display:none;">
+                <div id="pdfNoLogo" style="font-size: 1.8rem; font-weight: 700; color: #111; letter-spacing: 2px; display: none;">CREHACER</div>
+            </div>
+            <div style="text-align: right;">
+                <h2 style="color: #111; font-size: 2.2rem; font-weight: 300; letter-spacing: 2px; margin-bottom: 5px;">COTIZACIÓN</h2>
+                <p style="color: #666; font-size: 0.9rem;">Fecha de emisión: <strong id="pdfFecha"></strong></p>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-bottom: 50px;">
+            <div style="width: 45%;">
+                <h3 style="margin-bottom: 8px; font-size: 0.85rem; color: #999; text-transform: uppercase; letter-spacing: 1px; font-weight: 500;">Emitido por:</h3>
+                <strong id="pdfMiEmpresa" style="font-size: 1.1rem; color: #222; display: block; margin-bottom: 4px;"></strong>
+                <span id="pdfMiContacto" style="color: #555; font-size: 0.95rem;"></span>
+            </div>
+            <div style="width: 45%;">
+                <h3 style="margin-bottom: 8px; font-size: 0.85rem; color: #999; text-transform: uppercase; letter-spacing: 1px; font-weight: 500;">Preparado para:</h3>
+                <strong id="pdfClienteNombre" style="font-size: 1.1rem; color: #222; display: block; margin-bottom: 4px;"></strong>
+                <span id="pdfClienteDireccion" style="color: #555; font-size: 0.95rem;"></span>
+            </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+            <thead>
+                <tr style="background-color: #e2e2e2;">
+                    <th style="padding: 15px; border: 1px solid #ccc; text-align: left; font-size: 0.85rem; color: #222;">Descripción del Servicio</th>
+                    <th style="width: 80px; padding: 15px; border: 1px solid #ccc; text-align: center; font-size: 0.85rem; color: #222;">Cant.</th>
+                    <th style="width: 140px; padding: 15px; border: 1px solid #ccc; text-align: center; font-size: 0.85rem; color: #222;">Precio Unit. (S/)</th>
+                    <th style="width: 140px; padding: 15px; border: 1px solid #ccc; text-align: center; font-size: 0.85rem; color: #222;">Importe (S/)</th>
+                </tr>
+            </thead>
+            <tbody id="pdfTableBody"></tbody>
+        </table>
+
+        <div style="width: 350px; margin-left: auto; background: #fdfdfd; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; color: #555;">
+                <span>Subtotal de Servicios:</span>
+                <span class="currency" id="pdfSubtotal">0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; color: #555; display: none;" id="pdfRowFlete">
+                <span>Flete / Transporte:</span>
+                <span class="currency" id="pdfFlete">0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; color: #555; display: none;" id="pdfRowIGV">
+                <span>IGV (<span id="pdfIGVPercentLabel">18</span>%):</span>
+                <span class="currency" id="pdfIGV">0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; color: #000; font-size: 1.4font-weight: 600; border-top: 2px solid #222; margin-top: 5px; font-weight: bold;">
+                <span>TOTAL A PAGAR:</span>
+                <span class="currency" id="pdfTotal">0.00</span>
+            </div>
+        </div>
+        
+        <div style="margin-top: 60px; border-top: 1px solid #eee; padding-top: 20px; color: #888; font-size: 0.85rem; text-align: center;">
+            Gracias por confiar en nuestros servicios. Este documento tiene una validez de 15 días.
         </div>
     </div>
 
@@ -840,42 +903,68 @@
             localStorage.setItem('crehacer_data', JSON.stringify(data));
         }
 
-        function generarCotizacion() {
-            document.getElementById('qMiEmpresa').innerText = document.getElementById('miEmpresa').value || 'Mi Empresa';
-            document.getElementById('qMiContacto').innerText = document.getElementById('miContacto').value || '';
-            document.getElementById('qClienteNombre').innerText = document.getElementById('clienteNombre').value || 'Cliente';
-            document.getElementById('qClienteDireccion').innerText = document.getElementById('clienteDireccion').value || '';
+        function prepararDatosPDF() {
+            const empresa = document.getElementById('miEmpresa').value || 'Mi Empresa';
+            const contacto = document.getElementById('miContacto').value || '';
+            const cliente = document.getElementById('clienteNombre').value || 'Cliente';
+            const direccion = document.getElementById('clienteDireccion').value || '';
             
             const hoy = new Date();
-            document.getElementById('quoteFecha').innerText = hoy.toLocaleDateString('es-PE');
+            const fechaStr = hoy.toLocaleDateString('es-PE');
 
-            const qLogo = document.getElementById('quoteLogo');
-            const qNoLogo = document.getElementById('quoteNoLogo');
+            // Rellenar visualizador en pantalla
+            document.getElementById('qMiEmpresa').innerText = empresa;
+            document.getElementById('qMiContacto').innerText = contacto;
+            document.getElementById('qClienteNombre').innerText = cliente;
+            document.getElementById('qClienteDireccion').innerText = direccion;
+            document.getElementById('quoteFecha').innerText = fechaStr;
+
+            // Rellenar contenedor oculto del PDF
+            document.getElementById('pdfMiEmpresa').innerText = empresa;
+            document.getElementById('pdfMiContacto').innerText = contacto;
+            document.getElementById('pdfClienteNombre').innerText = cliente;
+            document.getElementById('pdfClienteDireccion').innerText = direccion;
+            document.getElementById('pdfFecha').innerText = fechaStr;
+
+            // Logo
             if (logoBase64) {
-                qLogo.src = logoBase64;
-                qLogo.style.display = 'block';
-                qNoLogo.style.display = 'none';
+                document.getElementById('quoteLogo').src = logoBase64;
+                document.getElementById('quoteLogo').style.display = 'block';
+                document.getElementById('quoteNoLogo').style.display = 'none';
+
+                document.getElementById('pdfLogo').src = logoBase64;
+                document.getElementById('pdfLogo').style.display = 'block';
+                document.getElementById('pdfNoLogo').style.display = 'none';
             } else {
-                qLogo.style.display = 'none';
-                qNoLogo.style.display = 'block';
+                document.getElementById('quoteLogo').style.display = 'none';
+                document.getElementById('quoteNoLogo').style.display = 'block';
+
+                document.getElementById('pdfLogo').style.display = 'none';
+                document.getElementById('pdfNoLogo').style.display = 'block';
             }
 
+            // Tablas (Pantalla y PDF)
             const qBody = document.getElementById('quoteTableBody');
+            const pdfBody = document.getElementById('pdfTableBody');
             qBody.innerHTML = '';
+            pdfBody.innerHTML = '';
+
             let subtotalProyectos = 0;
 
             services.forEach(srv => {
                 if (srv.description.trim() !== '') {
                     const importeFila = srv.price * srv.quantity;
                     subtotalProyectos += importeFila;
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${srv.description}</td>
-                        <td>${srv.quantity}</td>
-                        <td class="currency">${formatMoney(srv.price)}</td>
-                        <td class="currency">${formatMoney(importeFila)}</td>
-                    `;
-                    qBody.appendChild(tr);
+                    
+                    // Fila pantalla
+                    const tr1 = document.createElement('tr');
+                    tr1.innerHTML = `<td>${srv.description}</td><td>${srv.quantity}</td><td class="currency">${formatMoney(srv.price)}</td><td class="currency">${formatMoney(importeFila)}</td>`;
+                    qBody.appendChild(tr1);
+
+                    // Fila PDF limpia
+                    const tr2 = document.createElement('tr');
+                    tr2.innerHTML = `<td style="padding: 12px; border: 1px solid #ddd; text-align: left;">${srv.description}</td><td style="padding: 12px; border: 1px solid #ddd; text-align: center;">${srv.quantity}</td><td style="padding: 12px; border: 1px solid #ddd; text-align: center;" class="currency">${formatMoney(srv.price)}</td><td style="padding: 12px; border: 1px solid #ddd; text-align: center;" class="currency">${formatMoney(importeFila)}</td>`;
+                    pdfBody.appendChild(tr2);
                 }
             });
 
@@ -883,8 +972,11 @@
             if(flete > 0) {
                 document.getElementById('qRowFlete').style.display = 'flex';
                 document.getElementById('qFlete').innerText = formatMoney(flete);
+                document.getElementById('pdfRowFlete').style.display = 'flex';
+                document.getElementById('pdfFlete').innerText = formatMoney(flete);
             } else {
                 document.getElementById('qRowFlete').style.display = 'none';
+                document.getElementById('pdfRowFlete').style.display = 'none';
             }
 
             const applyIgv = document.getElementById('igvInput').checked;
@@ -895,68 +987,63 @@
             const totalPagar = subtotalBase + igvCliente;
 
             document.getElementById('qSubtotal').innerText = formatMoney(subtotalProyectos);
+            document.getElementById('pdfSubtotal').innerText = formatMoney(subtotalProyectos);
             
             if(applyIgv) {
                 document.getElementById('qRowIGV').style.display = 'flex';
                 document.getElementById('qIGVPercentLabel').innerText = igvPercent;
                 document.getElementById('qIGV').innerText = formatMoney(igvCliente);
+
+                document.getElementById('pdfRowIGV').style.display = 'flex';
+                document.getElementById('pdfIGVPercentLabel').innerText = igvPercent;
+                document.getElementById('pdfIGV').innerText = formatMoney(igvCliente);
             } else {
                 document.getElementById('qRowIGV').style.display = 'none';
+                document.getElementById('pdfRowIGV').style.display = 'none';
             }
             
             document.getElementById('qTotal').innerText = formatMoney(totalPagar);
+            document.getElementById('pdfTotal').innerText = formatMoney(totalPagar);
+        }
+
+        function generarCotizacion() {
+            prepararDatosPDF();
             document.getElementById('quoteModal').style.display = 'block';
         }
 
-        function exportarPDF() {
+        function exportarPDFDirecto() {
+            prepararDatosPDF();
             const clienteInput = document.getElementById('clienteNombre').value.trim();
             const clienteLimpio = clienteInput ? clienteInput.replace(/\s+/g, '_') : 'Cliente';
-            const nombreSugerido = `Cotizacion_${clienteLimpio}`;
-            
-            const nombreArchivo = prompt("Ingrese el nombre para guardar el PDF:", nombreSugerido);
-            
-            if (nombreArchivo !== null && nombreArchivo.trim() !== "") {
-                const tituloOriginal = document.title;
-                document.title = nombreArchivo; 
-                window.print(); 
-                document.title = tituloOriginal; 
-            }
+            const nombreArchivo = `Cotizacion_${clienteLimpio}.pdf`;
+
+            const element = document.getElementById('pdfExportContainer');
+            const opt = {
+                margin:       10,
+                filename:     nombreArchivo,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(element).set(opt).save();
         }
 
-        function enviarPorWhatsApp() {
+        function enviarPorWhatsAppConPDF() {
+            prepararDatosPDF();
+            
+            // 1. Descarga automática del PDF limpio
+            exportarPDFDirecto();
+
+            // 2. Instrucción clara y apertura de WhatsApp
             const telefonoRaw = document.getElementById('clienteWhatsApp').value;
             const telefono = telefonoRaw.replace(/\D/g,''); 
-            
-            const miEmpresa = document.getElementById('miEmpresa').value || 'CREHACER';
             const clienteNombre = document.getElementById('clienteNombre').value || 'Cliente';
+            const miEmpresa = document.getElementById('miEmpresa').value || 'CREHACER';
             
-            let mensaje = `*COTIZACIÓN - ${miEmpresa.toUpperCase()}*%0A`;
-            mensaje += `Hola ${clienteNombre}, te comparto el resumen de tu cotización:%0A%0A`;
-            mensaje += `*PROYECTOS / SERVICIOS:*%0A`;
-            
-            let subtotalProyectos = 0;
-            services.forEach(srv => {
-                if (srv.description.trim() !== '') {
-                    const importeFila = srv.price * srv.quantity;
-                    subtotalProyectos += importeFila;
-                    mensaje += `- ${srv.quantity}x ${srv.description}: S/ ${formatMoney(importeFila)}%0A`;
-                }
-            });
-            
-            const flete = parseFloat(document.getElementById('freightInput').value) || 0;
-            const applyIgv = document.getElementById('igvInput').checked;
-            const igvPercent = parseFloat(document.getElementById('igvPercent').value) || 18;
-            
-            const subtotalBase = subtotalProyectos + flete;
-            const igvCliente = applyIgv ? (subtotalBase * (igvPercent / 100)) : 0;
-            const totalPagar = subtotalBase + igvCliente;
-            
-            mensaje += `%0A*Subtotal:* S/ ${formatMoney(subtotalProyectos)}%0A`;
-            if(flete > 0) mensaje += `*Transporte:* S/ ${formatMoney(flete)}%0A`;
-            if(applyIgv) mensaje += `*IGV (${igvPercent}%):* S/ ${formatMoney(igvCliente)}%0A`;
-            
-            mensaje += `%0A*TOTAL A PAGAR:* S/ ${formatMoney(totalPagar)}%0A%0A`;
-            mensaje += `Quedo a tu disposición si tienes alguna consulta.`;
+            let mensaje = `Hola *${clienteNombre}*, te saluda *${miEmpresa}*.%0A`;
+            mensaje += `Te acabo de generar tu cotización oficial en PDF (se ha descargado en tu dispositivo). Adjúntala en este chat para revisarla.%0A%0A`;
+            mensaje += `Quedo a tu total disposición. ¡Saludos!`;
             
             let url = '';
             if (telefono) {
@@ -969,7 +1056,9 @@
                 url = `https://api.whatsapp.com/send?text=${mensaje}`;
             }
             
-            window.open(url, '_blank');
+            setTimeout(() => {
+                window.open(url, '_blank');
+            }, 1200);
         }
 
         function cerrarCotizacion() {
